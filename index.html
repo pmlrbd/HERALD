@@ -1,0 +1,1551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>HERALD — Harmfulness Propagation Dynamics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400;500;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:        #060811;
+  --bg2:       #0b0f1e;
+  --bg3:       #111628;
+  --surface:   #161c30;
+  --border:    #1f2a45;
+  --cyan:      #00d4ff;
+  --cyan-dim:  #00a0c0;
+  --amber:     #ff8c42;
+  --red:       #ff3d5a;
+  --green:     #2dce8a;
+  --muted:     #5a6a8a;
+  --text:      #c8d6f0;
+  --text-dim:  #7080a0;
+  --white:     #eef2ff;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 16px;
+  line-height: 1.7;
+  overflow-x: hidden;
+}
+
+/* ── GRID NOISE OVERLAY ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+  opacity: .4;
+}
+
+/* ── NAV ── */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2.5rem;
+  backdrop-filter: blur(20px);
+  background: rgba(6,8,17,.75);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-logo {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  font-size: .85rem;
+  color: var(--cyan);
+  letter-spacing: .08em;
+  text-decoration: none;
+}
+
+.nav-links {
+  display: flex;
+  gap: 2rem;
+  list-style: none;
+}
+
+.nav-links a {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .75rem;
+  color: var(--text-dim);
+  text-decoration: none;
+  letter-spacing: .06em;
+  transition: color .2s;
+}
+.nav-links a:hover { color: var(--cyan); }
+
+.nav-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .7rem;
+  color: var(--bg);
+  background: var(--cyan);
+  padding: .2rem .65rem;
+  border-radius: 2px;
+  letter-spacing: .04em;
+  font-weight: 700;
+}
+
+/* ── HERO ── */
+#hero {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 7rem 2.5rem 4rem;
+  overflow: hidden;
+}
+
+/* animated scanline grid */
+#hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(rgba(0,212,255,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+  pointer-events: none;
+  animation: gridDrift 30s linear infinite;
+}
+@keyframes gridDrift {
+  0%   { background-position: 0 0, 0 0; }
+  100% { background-position: 60px 60px, 60px 60px; }
+}
+
+.hero-inner {
+  position: relative;
+  z-index: 2;
+  max-width: 800px;
+}
+
+.hero-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .7rem;
+  color: var(--cyan);
+  letter-spacing: .12em;
+  border: 1px solid rgba(0,212,255,.3);
+  padding: .3rem .8rem;
+  border-radius: 2px;
+  margin-bottom: 1.5rem;
+  animation: fadeUp .8s ease forwards;
+  opacity: 0;
+}
+.hero-tag::before {
+  content: '●';
+  font-size: .5rem;
+  animation: blink 1.4s step-end infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+.hero-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: clamp(2.8rem, 6vw, 5.2rem);
+  font-weight: 400;
+  line-height: 1.08;
+  color: var(--white);
+  margin-bottom: 1rem;
+  animation: fadeUp .8s .15s ease forwards;
+  opacity: 0;
+}
+
+.hero-title em {
+  font-style: italic;
+  background: linear-gradient(135deg, var(--cyan), #7b8fff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-sub {
+  font-size: 1.05rem;
+  color: var(--text-dim);
+  max-width: 560px;
+  margin-bottom: 2.5rem;
+  animation: fadeUp .8s .3s ease forwards;
+  opacity: 0;
+  line-height: 1.75;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem;
+  animation: fadeUp .8s .45s ease forwards;
+  opacity: 0;
+}
+
+.btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .75rem;
+  letter-spacing: .06em;
+  font-weight: 500;
+  padding: .7rem 1.5rem;
+  border-radius: 3px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  transition: all .2s;
+  cursor: pointer;
+  border: none;
+}
+.btn-primary {
+  background: var(--cyan);
+  color: var(--bg);
+}
+.btn-primary:hover {
+  background: #33ddff;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 30px rgba(0,212,255,.3);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  transform: translateY(-1px);
+}
+
+.hero-authors {
+  margin-top: 2.5rem;
+  font-size: .8rem;
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  animation: fadeUp .8s .6s ease forwards;
+  opacity: 0;
+}
+.hero-authors span { color: var(--text); }
+
+/* ── TRAJECTORY CANVAS (hero right) ── */
+#traj-canvas-wrap {
+  position: absolute;
+  right: 0; top: 50%;
+  transform: translateY(-50%);
+  width: min(500px, 45vw);
+  height: 380px;
+  z-index: 1;
+  opacity: 0;
+  animation: fadeIn 1.5s .5s ease forwards;
+}
+#traj-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+/* ── STAT STRIP ── */
+#stats {
+  position: relative;
+  z-index: 2;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  overflow: hidden;
+}
+
+.stat-item {
+  padding: 2rem 1.5rem;
+  border-right: 1px solid var(--border);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  transition: background .3s;
+}
+.stat-item:last-child { border-right: none; }
+.stat-item:hover { background: var(--bg3); }
+.stat-item::before {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--cyan);
+  transform: scaleX(0);
+  transition: transform .4s ease;
+}
+.stat-item:hover::before { transform: scaleX(1); }
+
+.stat-num {
+  font-family: 'Instrument Serif', serif;
+  font-size: 2.6rem;
+  color: var(--cyan);
+  line-height: 1;
+  display: block;
+}
+.stat-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .68rem;
+  color: var(--text-dim);
+  letter-spacing: .08em;
+  margin-top: .4rem;
+  display: block;
+}
+
+/* ── SECTIONS ── */
+section { position: relative; z-index: 2; }
+
+.section-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 6rem 2.5rem;
+}
+
+.section-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .68rem;
+  letter-spacing: .15em;
+  color: var(--cyan);
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+}
+.section-label::after {
+  content: '';
+  flex: 1;
+  max-width: 60px;
+  height: 1px;
+  background: var(--cyan);
+  opacity: .4;
+}
+
+.section-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: clamp(2rem, 3.5vw, 3rem);
+  font-weight: 400;
+  color: var(--white);
+  line-height: 1.2;
+  margin-bottom: 1.2rem;
+}
+
+.section-body {
+  font-size: 1rem;
+  color: var(--text-dim);
+  max-width: 680px;
+  line-height: 1.8;
+}
+
+/* ── ABSTRACT ── */
+#abstract { background: var(--bg2); }
+
+.abstract-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2.5rem;
+  margin-top: 2.5rem;
+  position: relative;
+  overflow: hidden;
+}
+.abstract-card::before {
+  content: '"';
+  font-family: 'Instrument Serif', serif;
+  font-size: 8rem;
+  color: var(--cyan);
+  opacity: .07;
+  position: absolute;
+  top: -1.5rem;
+  left: 1.5rem;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.abstract-text {
+  font-size: 1rem;
+  line-height: 1.9;
+  color: var(--text);
+  position: relative;
+  z-index: 1;
+}
+
+.abstract-text strong {
+  color: var(--cyan);
+  font-weight: 500;
+}
+
+/* ── HPD VISUALIZATION ── */
+#hpd { background: var(--bg); }
+
+.hpd-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-top: 3rem;
+}
+
+.hpd-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.hpd-panel-header {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .75rem;
+}
+
+.dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+}
+.dot-red    { background: var(--red);   box-shadow: 0 0 8px var(--red); }
+.dot-green  { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.dot-cyan   { background: var(--cyan);  box-shadow: 0 0 8px var(--cyan); }
+.dot-amber  { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+
+.hpd-canvas-wrap { padding: 1.5rem; }
+canvas.hpd { width: 100%; height: 180px; display: block; }
+
+/* ── HOW IT WORKS ── */
+#method { background: var(--bg2); }
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+  margin-top: 3rem;
+}
+
+.step {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1.8rem 1.4rem;
+  position: relative;
+  overflow: hidden;
+  transition: transform .3s, border-color .3s;
+}
+.step:hover {
+  transform: translateY(-4px);
+  border-color: var(--cyan);
+}
+.step::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--cyan), transparent);
+}
+
+.step-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .65rem;
+  color: var(--cyan);
+  letter-spacing: .1em;
+  margin-bottom: 1rem;
+  opacity: .7;
+}
+
+.step-icon {
+  font-size: 1.8rem;
+  margin-bottom: .8rem;
+  display: block;
+}
+
+.step-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: 1.1rem;
+  color: var(--white);
+  margin-bottom: .5rem;
+}
+
+.step-desc {
+  font-size: .85rem;
+  color: var(--text-dim);
+  line-height: 1.65;
+}
+
+/* ── RESULTS TABLE ── */
+#results { background: var(--bg); }
+
+.results-wrap {
+  margin-top: 3rem;
+  overflow-x: auto;
+}
+
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .78rem;
+}
+
+.results-table th {
+  background: var(--bg3);
+  color: var(--text-dim);
+  padding: .75rem 1rem;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+  letter-spacing: .05em;
+  font-weight: 400;
+}
+.results-table th:first-child,
+.results-table th:nth-child(2) { text-align: left; }
+
+.results-table td {
+  padding: .7rem 1rem;
+  text-align: right;
+  border-bottom: 1px solid rgba(31,42,69,.5);
+  color: var(--text);
+  transition: background .15s;
+}
+.results-table td:first-child,
+.results-table td:nth-child(2) { text-align: left; color: var(--text-dim); }
+
+.results-table tr:hover td { background: var(--surface); }
+
+.results-table .group-label td {
+  background: var(--bg3);
+  color: var(--text-dim);
+  font-size: .65rem;
+  letter-spacing: .1em;
+  padding: .5rem 1rem;
+}
+
+.highlight-row td {
+  background: rgba(0,212,255,.06) !important;
+}
+.highlight-row td.best {
+  color: var(--cyan);
+  font-weight: 700;
+}
+
+.avg-cell { font-weight: 700; }
+
+/* ── BENCHMARK BARS ── */
+#benchmarks { background: var(--bg2); }
+
+.bench-list {
+  margin-top: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.bench-row {
+  display: grid;
+  grid-template-columns: 160px 1fr 60px;
+  align-items: center;
+  gap: 1rem;
+}
+
+.bench-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .75rem;
+  color: var(--text-dim);
+  text-align: right;
+}
+
+.bench-bar-wrap {
+  background: var(--surface);
+  border-radius: 2px;
+  height: 24px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.bench-bar {
+  height: 100%;
+  border-radius: 2px;
+  position: relative;
+  transition: width 1.2s cubic-bezier(.16,1,.3,1);
+}
+
+.bench-bar-herald {
+  background: linear-gradient(90deg, var(--cyan-dim), var(--cyan));
+}
+.bench-bar-base {
+  background: rgba(90,106,138,.35);
+  position: absolute;
+  top: 0; left: 0;
+  height: 100%;
+}
+
+.bench-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .8rem;
+  color: var(--cyan);
+  font-weight: 700;
+}
+
+/* ── MEMORY EFFICIENCY ── */
+#efficiency { background: var(--bg3); }
+
+.eff-cards {
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  gap: 1.5rem;
+  margin-top: 2.5rem;
+}
+
+.eff-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  transition: border-color .3s;
+}
+.eff-card:hover { border-color: var(--cyan); }
+
+.eff-card.highlight {
+  border-color: var(--cyan);
+  background: rgba(0,212,255,.04);
+}
+.eff-card.highlight::after {
+  content: '★ HERALD';
+  position: absolute;
+  top: .75rem; right: .75rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .6rem;
+  color: var(--cyan);
+  letter-spacing: .08em;
+}
+
+.eff-num {
+  font-family: 'Instrument Serif', serif;
+  font-size: 2.4rem;
+  color: var(--white);
+  display: block;
+  line-height: 1.1;
+  margin-bottom: .3rem;
+}
+.eff-unit {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .75rem;
+  color: var(--text-dim);
+  letter-spacing: .08em;
+  display: block;
+  margin-bottom: .8rem;
+}
+.eff-label {
+  font-size: .85rem;
+  color: var(--text-dim);
+}
+.eff-card.highlight .eff-num { color: var(--cyan); }
+
+/* ── ONSET TIMELINE ── */
+#interpretability { background: var(--bg2); }
+
+.onset-grid {
+  margin-top: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+}
+
+.onset-row {
+  display: grid;
+  grid-template-columns: 200px 1fr 80px 70px;
+  align-items: center;
+  gap: 1rem;
+  padding: .6rem 0;
+  border-bottom: 1px solid rgba(31,42,69,.5);
+}
+
+.onset-cat {
+  font-size: .85rem;
+  color: var(--text);
+}
+
+.onset-timeline {
+  position: relative;
+  height: 20px;
+  background: var(--surface);
+  border-radius: 2px;
+  border: 1px solid var(--border);
+}
+
+.onset-marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 10px var(--amber);
+  transition: left 1s ease;
+}
+
+.onset-fill {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  background: linear-gradient(90deg, rgba(0,212,255,.15), transparent);
+  border-radius: 2px;
+}
+
+.onset-layer {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .75rem;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.onset-mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .75rem;
+  text-align: center;
+}
+
+/* ── BIBTEX ── */
+#cite { background: var(--bg); }
+
+.bibtex-block {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1.5rem 2rem;
+  margin-top: 2rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .78rem;
+  line-height: 1.8;
+  color: var(--text-dim);
+  position: relative;
+  overflow: hidden;
+}
+
+.bibtex-block .kw  { color: var(--cyan); }
+.bibtex-block .val { color: var(--amber); }
+.bibtex-block .key { color: var(--green); }
+
+.copy-btn {
+  position: absolute;
+  top: 1rem; right: 1rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .65rem;
+  color: var(--text-dim);
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  padding: .3rem .7rem;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all .2s;
+  letter-spacing: .05em;
+}
+.copy-btn:hover { color: var(--cyan); border-color: var(--cyan); }
+
+/* ── FOOTER ── */
+footer {
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  padding: 2.5rem;
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: .72rem;
+  color: var(--text-dim);
+  letter-spacing: .05em;
+  position: relative;
+  z-index: 2;
+}
+footer a { color: var(--cyan); text-decoration: none; }
+
+/* ── ANIMATIONS ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity .7s ease, transform .7s ease;
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 900px) {
+  #stats         { grid-template-columns: repeat(2,1fr); }
+  .hpd-grid      { grid-template-columns: 1fr; }
+  .steps         { grid-template-columns: 1fr 1fr; }
+  .eff-cards     { grid-template-columns: 1fr; }
+  #traj-canvas-wrap { display: none; }
+  .bench-row     { grid-template-columns: 120px 1fr 55px; }
+  .onset-row     { grid-template-columns: 140px 1fr 60px 60px; }
+}
+@media (max-width: 600px) {
+  nav { padding: 1rem 1.2rem; }
+  .section-inner { padding: 4rem 1.2rem; }
+  .steps { grid-template-columns: 1fr; }
+  #stats { grid-template-columns: repeat(2,1fr); }
+  .onset-row { grid-template-columns: 1fr 1fr; }
+  .onset-timeline, .onset-layer, .onset-mono { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<nav>
+  <a class="nav-logo" href="#">◈ HERALD</a>
+  <ul class="nav-links">
+    <li><a href="#abstract">Abstract</a></li>
+    <li><a href="#method">Method</a></li>
+    <li><a href="#results">Results</a></li>
+    <li><a href="#interpretability">Interpretability</a></li>
+    <li><a href="#cite">BibTeX</a></li>
+  </ul>
+  <a class="nav-badge" href="#">ICML 2026</a>
+</nav>
+
+<!-- ── HERO ── -->
+<section id="hero">
+  <div class="hero-inner">
+    <div class="hero-tag">ICML 2026 · LLM Safety · Mechanistic Interpretability</div>
+
+    <h1 class="hero-title">
+      Harmfulness<br/>
+      <em>Propagates</em><br/>
+      Through Layers
+    </h1>
+
+    <p class="hero-sub">
+      We discover that harmful intent in LLMs is not a static property—it
+      <strong>rises monotonically</strong> across transformer layers.
+      <strong>HERALD</strong> reads this trajectory to detect adversarial prompts
+      with 262 KB of memory and zero extra forward passes.
+    </p>
+
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="#">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+        Read Paper
+      </a>
+      <a class="btn btn-ghost" href="#">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/></svg>
+        GitHub
+      </a>
+      <a class="btn btn-ghost" href="#">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/><polyline points="9 18 4 12 9 6"/></svg>
+        arXiv
+      </a>
+    </div>
+
+    <div class="hero-authors">
+      Firstname1 Lastname1<span>*</span>, Firstname2 Lastname2<span>*</span>,
+      Firstname3 Lastname3, Firstname4 Lastname4,
+      <span>et al.</span> · University of YYY &amp; Company Name
+    </div>
+  </div>
+
+  <!-- Animated trajectory canvas -->
+  <div id="traj-canvas-wrap">
+    <canvas id="traj-canvas"></canvas>
+  </div>
+</section>
+
+<!-- ── STATS ── -->
+<div id="stats">
+  <div class="stat-item reveal">
+    <span class="stat-num" data-target="89.3">0</span>
+    <span class="stat-label">AVG F1 · OLMO2-7B</span>
+  </div>
+  <div class="stat-item reveal">
+    <span class="stat-num">262<small style="font-size:1.2rem">KB</small></span>
+    <span class="stat-label">TOTAL MEMORY OVERHEAD</span>
+  </div>
+  <div class="stat-item reveal">
+    <span class="stat-num">8</span>
+    <span class="stat-label">BENCHMARKS EVALUATED</span>
+  </div>
+  <div class="stat-item reveal">
+    <span class="stat-num">98.4</span>
+    <span class="stat-label">JAILBREAK F1 · WILDJAILBREAK</span>
+  </div>
+</div>
+
+<!-- ── ABSTRACT ── -->
+<section id="abstract">
+  <div class="section-inner">
+    <div class="section-label">Abstract</div>
+    <h2 class="section-title reveal">The Shape of Harm</h2>
+    <p class="section-body reveal">
+      A new lens for understanding how large language models process dangerous requests.
+    </p>
+    <div class="abstract-card reveal">
+      <p class="abstract-text">
+        We study how harmful intent emerges across transformer layers as a structured internal signal and identify
+        <strong>Harmfulness Propagation Dynamics (HPD)</strong>: for harmful prompts, the projection of the last-token
+        hidden state onto a learned harm direction increases with depth and becomes strongly positive in late layers,
+        whereas benign prompts remain flat or oscillatory. Building on this, we introduce <strong>HERALD</strong>
+        (<em>Harmful Encoding Recognition via Activation Layer Dynamics</em>), an input moderator that classifies the
+        <em>shape</em> of the cross-layer trajectory rather than a single-layer snapshot. HERALD stores one
+        <em>d</em>-dimensional direction per layer, requiring only <strong>262 KB</strong> for a 32-layer model,
+        and needs no gradient computation during training. Across eight prompt-harmfulness benchmarks and four backbone
+        families, HERALD attains an average F1 of <strong>89.3</strong> on OLMo2-7B, outperforms all tested guard
+        models on adversarial jailbreak detection, and surpasses prior latent-based methods while providing a
+        visualisable, structured per-instance harmfulness trajectory.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ── HPD VISUALIZATION ── -->
+<section id="hpd">
+  <div class="section-inner">
+    <div class="section-label">Core Observation</div>
+    <h2 class="section-title reveal">Harmful Intent Rises With Depth</h2>
+    <p class="section-body reveal">
+      Projecting each layer's last-token hidden state onto a learned harm direction reveals a systematic difference.
+      Harmful prompts produce a rising, monotonic trajectory. Benign prompts stay flat.
+    </p>
+    <div class="hpd-grid" style="margin-top:2.5rem;">
+      <div class="hpd-panel reveal">
+        <div class="hpd-panel-header">
+          <div class="dot dot-red"></div>
+          <span style="color:var(--red); font-weight:500;">Harmful Prompt</span>
+          <span style="color:var(--text-dim); margin-left:auto;">Jailbreak · WildJailbreak</span>
+        </div>
+        <div class="hpd-canvas-wrap">
+          <canvas class="hpd" id="c-harmful" height="180"></canvas>
+        </div>
+      </div>
+      <div class="hpd-panel reveal">
+        <div class="hpd-panel-header">
+          <div class="dot dot-green"></div>
+          <span style="color:var(--green); font-weight:500;">Benign Prompt</span>
+          <span style="color:var(--text-dim); margin-left:auto;">General QA · MMLU</span>
+        </div>
+        <div class="hpd-canvas-wrap">
+          <canvas class="hpd" id="c-benign" height="180"></canvas>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:1rem; text-align:center; font-family:'JetBrains Mono',monospace; font-size:.72rem; color:var(--text-dim);">
+      Simulated trajectory on Llama-3.1-8B-Instruct · 32 transformer layers · cosine projection onto LDA harm direction
+    </div>
+  </div>
+</section>
+
+<!-- ── METHOD ── -->
+<section id="method">
+  <div class="section-inner">
+    <div class="section-label">Methodology</div>
+    <h2 class="section-title reveal">Four Steps. No Gradients. 262 KB.</h2>
+    <p class="section-body reveal">
+      HERALD operates entirely within the forward pass of the host model.
+      No additional model weights are loaded. No backpropagation required.
+    </p>
+    <div class="steps">
+      <div class="step reveal">
+        <div class="step-num">STEP 01</div>
+        <span class="step-icon">⟨ v ⟩</span>
+        <div class="step-title">Per-Layer LDA Directions</div>
+        <p class="step-desc">For each of the <em>L</em> transformer layers, compute a harm direction via Linear Discriminant Analysis on the last-token hidden states. Ledoit–Wolf shrinkage ensures stability even at 100 training samples.</p>
+      </div>
+      <div class="step reveal">
+        <div class="step-num">STEP 02</div>
+        <span class="step-icon">⟨ p_l ⟩</span>
+        <div class="step-title">Cosine Projection</div>
+        <p class="step-desc">At inference, project each layer's unit-normalised last-token hidden state onto its learned harm direction to produce scalar <em>p<sub>l</sub></em>. The sequence {p<sub>l</sub>} is the harm trajectory.</p>
+      </div>
+      <div class="step reveal">
+        <div class="step-num">STEP 03</div>
+        <span class="step-icon">⟨ φ ⟩</span>
+        <div class="step-title">7-Dim Feature Record</div>
+        <p class="step-desc">Extract slope, curvature, monotonicity, onset layer, onset value, mean, and final value from the trajectory. A compact tabular representation capturing the geometry of how harmfulness emerges.</p>
+      </div>
+      <div class="step reveal">
+        <div class="step-num">STEP 04</div>
+        <span class="step-icon">⟨ g ⟩</span>
+        <div class="step-title">288-Parameter MLP</div>
+        <p class="step-desc">A two-layer MLP with hidden dimension 32 classifies the feature record. Trains on CPU in seconds. Logistic regression nearly matches it—the hard work is in the trajectory geometry.</p>
+      </div>
+    </div>
+
+    <!-- Feature vector display -->
+    <div class="abstract-card reveal" style="margin-top:3rem;">
+      <p style="font-family:'JetBrains Mono',monospace; font-size:.78rem; color:var(--text-dim); margin-bottom:1rem; letter-spacing:.06em;">TRAJECTORY FEATURE VECTOR φ(p) ∈ ℝ⁷</p>
+      <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:.5rem; text-align:center;">
+        <div style="background:var(--bg3); border:1px solid var(--border); border-radius:3px; padding:.8rem .4rem;">
+          <div style="font-family:'Instrument Serif',serif; font-size:1.1rem; color:var(--cyan);">p<sub>L</sub></div>
+          <div style="font-family:'JetBrains Mono',monospace; font-size:.58rem; color:var(--text-dim); margin-top:.3rem;">final value</div>
+        </div>
+        <div style="background:var(--bg3); border:1px solid var(--border); border-radius:3px; padding:.8rem .4rem;">
+          <div style="font-family:'Instrument Serif',serif; font-size:1.1rem; color:var(--cyan);">p̄</div>
+          <div style="font-family:'JetBrains Mono',monospace; font-size:.58rem; color:var(--text-dim); margin-top:.3rem;">mean</div>
+        </div>
+        <div style="background:var(--bg3); border:1px solid var(--border); border-radius:3px; padding:.8rem .4rem;">
+          <div style="font-family:'Instrument Serif',serif; font-size:1.1rem; color:var(--cyan);">Δp</div>
+          <div style="font-family:'JetBrains Mono',monospace; font-size:.58rem; color:var(--text-dim); margin-top:.3rem;">total rise</div>
+        </div>
+        <div style="background:var(--bg3); border:1px solid var(--border); border-radius:3px; padding:.8rem .4rem;">
+          <div style="font-family:'Instrument Serif',serif; font-size:1.1rem; color:var(--cyan);">κ</div>
+          <div style="font-family:'JetBrains Mono',monospace; font-size:.58rem; color:var(--text-dim); margin-top:.3rem;">curvature</div>
+        </div>
+        <div style="background:var(--bg3); border:1px solid var(--border); border-radius:3px; padding:.8rem .4rem;">
+          <div style="font-family:'Instrument Serif',serif; font-size:1.1rem; color:var(--cyan);">m</div>
+          <div style="font-family:'JetBrains Mono',monospace; font-size:.58rem; color:var(--text-dim); margin-top:.3rem;">monotonicity</div>
+        </div>
+        <div style="background:var(--bg3); border:1px solid var(--border); border-radius:3px; padding:.8rem .4rem;">
+          <div style="font-family:'Instrument Serif',serif; font-size:1.1rem; color:var(--amber);">p<sub>l*</sub></div>
+          <div style="font-family:'JetBrains Mono',monospace; font-size:.58rem; color:var(--text-dim); margin-top:.3rem;">onset value</div>
+        </div>
+        <div style="background:var(--bg3); border:1px solid rgba(255,140,66,.4); border-radius:3px; padding:.8rem .4rem;">
+          <div style="font-family:'Instrument Serif',serif; font-size:1.1rem; color:var(--amber);">l*</div>
+          <div style="font-family:'JetBrains Mono',monospace; font-size:.58rem; color:var(--text-dim); margin-top:.3rem;">onset layer ★</div>
+        </div>
+      </div>
+      <p style="font-size:.8rem; color:var(--text-dim); margin-top:.8rem;">★ Onset layer provides the largest single gain, especially on adversarial jailbreak detection (+1.3 F1).</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── RESULTS ── -->
+<section id="results">
+  <div class="section-inner">
+    <div class="section-label">Results</div>
+    <h2 class="section-title reveal">State-of-the-Art Across Eight Benchmarks</h2>
+    <p class="section-body reveal">
+      HERALD outperforms all latent-based baselines on every backbone and surpasses all guard models on adversarial jailbreak detection (WJB), while using 53,000× less memory than a 7B guard model.
+    </p>
+    <div class="results-wrap reveal">
+      <table class="results-table">
+        <thead>
+          <tr>
+            <th>Method</th>
+            <th>Backbone</th>
+            <th>Aegis</th>
+            <th>HarmB</th>
+            <th>OAI</th>
+            <th>SimpST</th>
+            <th>TChat</th>
+            <th>WGMix</th>
+            <th>WJB ⚡</th>
+            <th>XSTest</th>
+            <th>Avg F1</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="group-label"><td colspan="11">Latent-based methods</td></tr>
+          <tr>
+            <td>Embed. Clf.</td><td>Llama-8B</td>
+            <td>79.3</td><td>93.1</td><td>63.7</td><td>96.4</td><td>52.8</td><td>77.9</td><td>79.4</td><td>89.6</td><td class="avg-cell">79.0</td>
+          </tr>
+          <tr>
+            <td>Act. Delta</td><td>Llama-8B</td>
+            <td>81.6</td><td>92.4</td><td>65.2</td><td>97.1</td><td>57.3</td><td>83.5</td><td>90.8</td><td>87.9</td><td class="avg-cell">82.0</td>
+          </tr>
+          <tr class="highlight-row">
+            <td><strong style="color:var(--cyan)">HERALD</strong></td><td>Llama-8B</td>
+            <td class="best">84.1</td><td class="best">97.6</td><td class="best">69.5</td><td class="best">98.4</td><td class="best">64.9</td><td class="best">86.3</td><td class="best">95.8</td><td class="best">93.7</td><td class="avg-cell best">86.3</td>
+          </tr>
+          <tr><td>Embed. Clf.</td><td>Mistral-7B</td><td>77.4</td><td>88.5</td><td>72.6</td><td>96.8</td><td>61.0</td><td>80.6</td><td>84.7</td><td>91.8</td><td class="avg-cell">81.7</td></tr>
+          <tr><td>Act. Delta</td><td>Mistral-7B</td><td>81.9</td><td>94.7</td><td>62.3</td><td>96.3</td><td>55.4</td><td>82.9</td><td>88.4</td><td>91.3</td><td class="avg-cell">81.6</td></tr>
+          <tr class="highlight-row">
+            <td><strong style="color:var(--cyan)">HERALD</strong></td><td>Mistral-7B</td>
+            <td class="best">85.7</td><td class="best">97.9</td><td class="best">68.4</td><td class="best">98.9</td><td class="best">63.6</td><td class="best">86.7</td><td class="best">94.3</td><td class="best">94.9</td><td class="avg-cell best">86.3</td>
+          </tr>
+          <tr><td>Embed. Clf.</td><td>OLMo2-7B</td><td>85.6</td><td>93.8</td><td>65.4</td><td>98.6</td><td>63.1</td><td>85.7</td><td>94.2</td><td>91.5</td><td class="avg-cell">84.7</td></tr>
+          <tr><td>Act. Delta</td><td>OLMo2-7B</td><td>81.4</td><td>90.7</td><td>72.9</td><td>97.4</td><td>70.8</td><td>83.6</td><td>91.0</td><td>92.2</td><td class="avg-cell">85.0</td></tr>
+          <tr class="highlight-row">
+            <td><strong style="color:var(--cyan)">HERALD</strong></td><td>OLMo2-7B</td>
+            <td class="best">88.7</td><td class="best">97.4</td><td class="best">73.1</td><td class="best">99.5</td><td class="best">74.6</td><td class="best">87.9</td><td class="best" style="color:#ff3d5a;font-size:.9rem">98.4</td><td class="best">95.8</td><td class="avg-cell best" style="font-size:.9rem">89.3</td>
+          </tr>
+          <tr class="group-label"><td colspan="11">Guard models (standalone classifiers; no backbone required)</td></tr>
+          <tr><td>Guard A</td><td>—</td><td>70.2</td><td>97.6</td><td>77.4</td><td>98.3</td><td>52.9</td><td>74.8</td><td>66.1</td><td>86.9</td><td class="avg-cell">78.0</td></tr>
+          <tr><td>Guard B</td><td>—</td><td>75.8</td><td>67.3</td><td>75.9</td><td>89.7</td><td>66.4</td><td>57.1</td><td>58.3</td><td>80.6</td><td class="avg-cell">71.4</td></tr>
+          <tr><td>Guard C</td><td>—</td><td>86.2</td><td>78.4</td><td>76.1</td><td>98.5</td><td>71.8</td><td>82.9</td><td>96.9</td><td>84.1</td><td class="avg-cell">84.4</td></tr>
+          <tr><td>Guard D</td><td>—</td><td>88.4</td><td>98.1</td><td>81.5</td><td>98.3</td><td>78.9</td><td>86.8</td><td>96.4</td><td>93.9</td><td class="avg-cell">87.8</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:.75rem; color:var(--text-dim); font-family:'JetBrains Mono',monospace; margin-top:.75rem; text-align:right;">⚡ WJB = WildJailbreak · HERALD surpasses all guard models on this benchmark</p>
+  </div>
+</section>
+
+<!-- ── BENCHMARK BARS ── -->
+<section id="benchmarks">
+  <div class="section-inner">
+    <div class="section-label">Benchmark Breakdown</div>
+    <h2 class="section-title reveal">OLMo2-7B Performance vs. Best Baseline</h2>
+    <p class="section-body reveal">
+      HERALD (cyan) vs. best competing method per benchmark (gray).
+      The gap is largest on adversarial jailbreak prompts.
+    </p>
+    <div class="bench-list reveal" id="bench-bars">
+      <!-- injected by JS -->
+    </div>
+  </div>
+</section>
+
+<!-- ── EFFICIENCY ── -->
+<section id="efficiency">
+  <div class="section-inner">
+    <div class="section-label">Efficiency</div>
+    <h2 class="section-title reveal">Order-of-Magnitude Smaller</h2>
+    <p class="section-body reveal">
+      HERALD stores only L direction vectors. No scatter matrices. No extra model weights.
+      Deployable alongside the host model on a single GPU.
+    </p>
+    <div class="eff-cards">
+      <div class="eff-card reveal">
+        <span class="eff-num">14 GB</span>
+        <span class="eff-unit">GUARD MODEL (7B PARAMS)</span>
+        <span class="eff-label">Requires a dedicated inference process. ≈53,000× larger than HERALD.</span>
+      </div>
+      <div class="eff-card reveal">
+        <span class="eff-num">1.07 GB</span>
+        <span class="eff-unit">FULL COVARIANCE APPROACH</span>
+        <span class="eff-label">O(Ld²) storage. Infeasible at d=4096 without approximation. ≈4,100× larger.</span>
+      </div>
+      <div class="eff-card highlight reveal">
+        <span class="eff-num">262 KB</span>
+        <span class="eff-unit">HERALD — O(Ld) STORAGE</span>
+        <span class="eff-label">32 × 4096 × 2 bytes (fp16). One direction vector per layer. Scatter matrices discarded after training.</span>
+      </div>
+    </div>
+    <div style="margin-top:2rem; background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:1.5rem 2rem; display:grid; grid-template-columns:1fr 1fr; gap:2rem;" class="reveal">
+      <div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:.68rem; color:var(--cyan); letter-spacing:.1em; margin-bottom:.5rem;">INFERENCE OVERHEAD</div>
+        <div style="font-family:'Instrument Serif',serif; font-size:2rem; color:var(--white);">2.6 × 10⁻⁶</div>
+        <div style="font-size:.85rem; color:var(--text-dim);">of prefill FLOPs for a 100-token prompt on a 32-layer model</div>
+      </div>
+      <div>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:.68rem; color:var(--cyan); letter-spacing:.1em; margin-bottom:.5rem;">DIRECTION STABILITY</div>
+        <div style="font-family:'Instrument Serif',serif; font-size:2rem; color:var(--white);">&gt; 0.97</div>
+        <div style="font-size:.85rem; color:var(--text-dim);">pairwise cosine similarity of LDA directions across 5 independent splits at every layer</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── INTERPRETABILITY ── -->
+<section id="interpretability">
+  <div class="section-inner">
+    <div class="section-label">Interpretability</div>
+    <h2 class="section-title reveal">Harm Categories Have Distinct Signatures</h2>
+    <p class="section-body reveal">
+      The onset layer reveals <em>when</em> the model resolves harmful intent.
+      Jailbreaks are resolved early and consistently. Social stereotypes emerge late and diffusely.
+      This structure is invisible to any single-layer approach.
+    </p>
+    <div style="margin-top:1.5rem; display:grid; grid-template-columns:160px 1fr 90px 90px; gap:.75rem; padding:.5rem 0; border-bottom:1px solid var(--border);" class="reveal">
+      <div style="font-family:'JetBrains Mono',monospace; font-size:.68rem; color:var(--text-dim); letter-spacing:.08em;">HARM CATEGORY</div>
+      <div style="font-family:'JetBrains Mono',monospace; font-size:.68rem; color:var(--text-dim); letter-spacing:.08em;">ONSET LAYER (L=32)</div>
+      <div style="font-family:'JetBrains Mono',monospace; font-size:.68rem; color:var(--text-dim); letter-spacing:.08em; text-align:center;">ONSET L*</div>
+      <div style="font-family:'JetBrains Mono',monospace; font-size:.68rem; color:var(--text-dim); letter-spacing:.08em; text-align:center;">MONO.</div>
+    </div>
+    <div class="onset-grid reveal" id="onset-rows">
+      <!-- injected by JS -->
+    </div>
+    <div style="margin-top:1.5rem; font-size:.8rem; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">
+      ● = onset marker position on the 32-layer axis &nbsp;|&nbsp; Mono = fraction of consecutive layers with rising projection &nbsp;|&nbsp; Data: Llama-3.1-8B-Instruct
+    </div>
+  </div>
+</section>
+
+<!-- ── CITE ── -->
+<section id="cite">
+  <div class="section-inner">
+    <div class="section-label">Citation</div>
+    <h2 class="section-title reveal">BibTeX</h2>
+    <p class="section-body reveal">If you find HERALD or HPD useful in your research, please cite:</p>
+    <div class="bibtex-block reveal" id="bibtex-block">
+      <button class="copy-btn" onclick="copyBib()">COPY</button>
+<span class="kw">@inproceedings</span>{<span class="key">lastname2026herald</span>,<br/>
+&nbsp; <span class="kw">title</span>     = {<span class="val">Harmfulness Propagation Dynamics: Layer-wise Trajectories of Adversarial Intent in Large Language Models</span>},<br/>
+&nbsp; <span class="kw">author</span>    = {<span class="val">Lastname1, Firstname1 and Lastname2, Firstname2 and Lastname3, Firstname3 and others</span>},<br/>
+&nbsp; <span class="kw">booktitle</span> = {<span class="val">Proceedings of the 43rd International Conference on Machine Learning</span>},<br/>
+&nbsp; <span class="kw">series</span>    = {<span class="val">Proceedings of Machine Learning Research</span>},<br/>
+&nbsp; <span class="kw">year</span>      = {<span class="val">2026</span>},<br/>
+&nbsp; <span class="kw">publisher</span> = {<span class="val">PMLR</span>}<br/>
+}
+    </div>
+    <div style="display:flex; gap:1rem; margin-top:2rem; flex-wrap:wrap;" class="reveal">
+      <a class="btn btn-primary" href="#">📄 Paper PDF</a>
+      <a class="btn btn-ghost" href="#">⟨/⟩ Code &amp; Directions</a>
+      <a class="btn btn-ghost" href="#">📊 Evaluation Framework</a>
+      <a class="btn btn-ghost" href="#">🤗 HuggingFace</a>
+    </div>
+  </div>
+</section>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div style="margin-bottom:.5rem;">
+    <span style="color:var(--cyan);">HERALD</span> · ICML 2026 ·
+    Harmfulness Propagation Dynamics in Large Language Models
+  </div>
+  <div>
+    University of YYY &amp; Company Name ·
+    <a href="#">Paper</a> · <a href="#">Code</a> · <a href="#">Contact</a>
+  </div>
+</footer>
+
+<script>
+/* ════════════════════════════════════════════════
+   HERO TRAJECTORY ANIMATION
+════════════════════════════════════════════════ */
+(function() {
+  const canvas = document.getElementById('traj-canvas');
+  if (!canvas) return;
+  const W = canvas.width  = canvas.offsetWidth  * devicePixelRatio;
+  const H = canvas.height = canvas.offsetHeight * devicePixelRatio;
+  canvas.style.width  = canvas.offsetWidth  + 'px';
+  canvas.style.height = canvas.offsetHeight + 'px';
+  const ctx = canvas.getContext('2d');
+
+  const L = 32;
+  let t = 0;
+
+  function harmTraj(t) {
+    return Array.from({length:L}, (_,i) => {
+      const base = Math.pow(i/L, 1.6) * .7;
+      const noise = Math.sin(i*.7 + t*.5) * .04 + Math.sin(i*1.3 + t*.3) * .02;
+      return base + noise + .05;
+    });
+  }
+
+  function benignTraj(t) {
+    return Array.from({length:L}, (_,i) => {
+      return Math.sin(i*.4 + t*.4) * .08 + Math.sin(i*1.1 + t*.25) * .05 + .02;
+    });
+  }
+
+  function draw() {
+    ctx.clearRect(0,0,W,H);
+    const pad = {l:40, r:20, t:30, b:40};
+    const cw = W - pad.l - pad.r;
+    const ch = H - pad.t - pad.b;
+
+    // Grid lines
+    ctx.strokeStyle = 'rgba(31,42,69,.5)';
+    ctx.lineWidth = 1;
+    for (let i=0; i<=4; i++) {
+      const y = pad.t + ch - (i/4)*ch;
+      ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l+cw, y); ctx.stroke();
+      ctx.fillStyle = 'rgba(90,106,138,.5)';
+      ctx.font = `${10*devicePixelRatio}px JetBrains Mono`;
+      ctx.textAlign = 'right';
+      ctx.fillText((i*.25-.25).toFixed(2), pad.l-6, y+4);
+    }
+
+    const hp = harmTraj(t);
+    const bp = benignTraj(t);
+
+    function plotLine(traj, color, glow) {
+      ctx.save();
+      ctx.shadowColor = color;
+      ctx.shadowBlur  = 12 * devicePixelRatio;
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = 2.5 * devicePixelRatio;
+      ctx.lineJoin    = 'round';
+      ctx.beginPath();
+      traj.forEach((v, i) => {
+        const x = pad.l + (i/(L-1)) * cw;
+        const y = pad.t + ch - ((v + .25) / .9) * ch;
+        i === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+      });
+      ctx.stroke();
+      ctx.restore();
+
+      // dots at every 4th layer
+      traj.forEach((v, i) => {
+        if (i % 4 !== 0) return;
+        const x = pad.l + (i/(L-1)) * cw;
+        const y = pad.t + ch - ((v + .25) / .9) * ch;
+        ctx.save();
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 8 * devicePixelRatio;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(x, y, 3*devicePixelRatio, 0, Math.PI*2);
+        ctx.fill();
+        ctx.restore();
+      });
+    }
+
+    plotLine(hp, '#ff3d5a');
+    plotLine(bp, '#2dce8a');
+
+    // Layer axis
+    ctx.fillStyle = 'rgba(90,106,138,.6)';
+    ctx.font = `${9*devicePixelRatio}px JetBrains Mono`;
+    ctx.textAlign = 'center';
+    [1,8,16,24,32].forEach(l => {
+      const x = pad.l + ((l-1)/(L-1)) * cw;
+      ctx.fillText('L'+l, x, H - 8);
+    });
+
+    // Legend
+    const items = [
+      {c:'#ff3d5a', label:'Harmful'},
+      {c:'#2dce8a', label:'Benign'}
+    ];
+    items.forEach((item, i) => {
+      const x = pad.l + 10;
+      const y = pad.t + 16 + i*20;
+      ctx.fillStyle = item.c;
+      ctx.beginPath(); ctx.arc(x*devicePixelRatio/devicePixelRatio, y, 5*devicePixelRatio, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(200,214,240,.7)';
+      ctx.font = `${10*devicePixelRatio}px JetBrains Mono`;
+      ctx.textAlign = 'left';
+      ctx.fillText(item.label, x + 12, y + 4);
+    });
+
+    t += .015;
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+/* ════════════════════════════════════════════════
+   HPD PANEL CANVASES
+════════════════════════════════════════════════ */
+function drawHPDCanvas(id, type) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  const scale = devicePixelRatio;
+  canvas.width  = canvas.offsetWidth  * scale;
+  canvas.height = canvas.offsetHeight * scale;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const L = 32;
+  let t = 0;
+
+  function makeTraj(t) {
+    if (type === 'harmful') {
+      return Array.from({length:L}, (_,i) => {
+        const base = Math.pow(i/L, 1.8) * .85;
+        const noise = Math.sin(i*.6+t*.4)*.03 + Math.sin(i*1.4+t*.2)*.015;
+        return Math.max(-.05, base + noise - .05);
+      });
+    } else {
+      return Array.from({length:L}, (_,i) => {
+        return Math.sin(i*.45+t*.3)*.09 + Math.sin(i*1.2+t*.2)*.04
+               + Math.cos(i*.8+t*.5)*.03;
+      });
+    }
+  }
+
+  const color = type === 'harmful' ? '#ff3d5a' : '#2dce8a';
+
+  function frame() {
+    ctx.clearRect(0,0,W,H);
+    const pad = {l:14, r:10, t:14, b:24};
+    const cw = W - pad.l - pad.r;
+    const ch = H - pad.t - pad.b;
+
+    // zero line
+    const zero = pad.t + ch * .5;
+    ctx.strokeStyle = 'rgba(31,42,69,.7)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(pad.l, zero); ctx.lineTo(pad.l+cw, zero); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // area fill
+    const traj = makeTraj(t);
+    const grad = ctx.createLinearGradient(0, pad.t, 0, pad.t+ch);
+    grad.addColorStop(0, color.replace(')', ', .25)').replace('rgb','rgba').replace('#','') + '; color:' + color + '40');
+    grad.addColorStop(1, 'transparent');
+
+    ctx.save();
+    ctx.beginPath();
+    traj.forEach((v, i) => {
+      const x = pad.l + (i/(L-1))*cw;
+      const y = pad.t + ch*.5 - v*ch*.45;
+      i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    });
+    ctx.lineTo(pad.l+cw, pad.t+ch);
+    ctx.lineTo(pad.l, pad.t+ch);
+    ctx.closePath();
+    ctx.fillStyle = color+'22';
+    ctx.fill();
+    ctx.restore();
+
+    // line
+    ctx.save();
+    ctx.shadowColor = color; ctx.shadowBlur = 10*scale;
+    ctx.strokeStyle = color; ctx.lineWidth = 2*scale; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    traj.forEach((v, i) => {
+      const x = pad.l + (i/(L-1))*cw;
+      const y = pad.t + ch*.5 - v*ch*.45;
+      i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+    ctx.restore();
+
+    // Layer labels
+    ctx.fillStyle = 'rgba(90,106,138,.6)';
+    ctx.font = `${8*scale}px JetBrains Mono`;
+    ctx.textAlign = 'center';
+    ['L1','L8','L16','L24','L32'].forEach((l, j) => {
+      const x = pad.l + [0,.22,.47,.72,1][j]*cw;
+      ctx.fillText(l, x, H - 4);
+    });
+
+    t += .01;
+    requestAnimationFrame(frame);
+  }
+  frame();
+}
+
+window.addEventListener('load', () => {
+  drawHPDCanvas('c-harmful', 'harmful');
+  drawHPDCanvas('c-benign', 'benign');
+});
+
+/* ════════════════════════════════════════════════
+   BENCHMARK BARS
+════════════════════════════════════════════════ */
+const benchData = [
+  { name: 'WildJailbreak ⚡', herald: 98.4, base: 96.9 },
+  { name: 'SimpleSafetyTests', herald: 99.5, base: 98.6 },
+  { name: 'XSTest', herald: 95.8, base: 92.2 },
+  { name: 'HarmBench', herald: 97.4, base: 93.8 },
+  { name: 'WildGuardMix', herald: 87.9, base: 85.7 },
+  { name: 'Aegis', herald: 88.7, base: 85.6 },
+  { name: 'ToxicChat', herald: 74.6, base: 70.8 },
+  { name: 'OpenAI Moderation', herald: 73.1, base: 72.9 },
+];
+
+const benchWrap = document.getElementById('bench-bars');
+benchData.forEach(d => {
+  const row = document.createElement('div');
+  row.className = 'bench-row';
+  const pctH = ((d.herald - 50) / 50) * 100;
+  const pctB = ((d.base  - 50) / 50) * 100;
+  row.innerHTML = `
+    <div class="bench-name">${d.name}</div>
+    <div class="bench-bar-wrap">
+      <div class="bench-bar bench-bar-base" style="width:${pctB}%"></div>
+      <div class="bench-bar bench-bar-herald" style="width:0%" data-target="${pctH}"></div>
+    </div>
+    <div class="bench-val">${d.herald}</div>
+  `;
+  benchWrap.appendChild(row);
+});
+
+/* ════════════════════════════════════════════════
+   ONSET ROWS
+════════════════════════════════════════════════ */
+const onsetData = [
+  { cat:'Jailbreak',             layer: 7.4, mono: .83, color:'#ff3d5a' },
+  { cat:'Violence & Physical',   layer: 9.1, mono: .81, color:'#ff6b3d' },
+  { cat:'Hate Speech',           layer:10.8, mono: .75, color:'#ff8c42' },
+  { cat:'Cyberattack',           layer:11.3, mono: .77, color:'#ffaa42' },
+  { cat:'Direct Harmful Req.',   layer:14.2, mono: .79, color:'#ffc842' },
+  { cat:'Sexual Content',        layer:12.7, mono: .72, color:'#e0c040' },
+  { cat:'Social Stereotypes',    layer:19.4, mono: .58, color:'#7b8fff' },
+];
+
+const onsetWrap = document.getElementById('onset-rows');
+onsetData.forEach(d => {
+  const pct = (d.layer / 32) * 100;
+  const row = document.createElement('div');
+  row.className = 'onset-row';
+  row.innerHTML = `
+    <div class="onset-cat">${d.cat}</div>
+    <div class="onset-timeline">
+      <div class="onset-fill" style="width:${pct}%"></div>
+      <div class="onset-marker" style="left:${pct}%; background:${d.color}; box-shadow:0 0 10px ${d.color};"></div>
+    </div>
+    <div class="onset-layer" style="color:${d.color};">${d.layer}</div>
+    <div class="onset-mono" style="color:${d.mono < .65 ? 'var(--text-dim)' : d.color};">${d.mono.toFixed(2)}</div>
+  `;
+  onsetWrap.appendChild(row);
+});
+
+/* ════════════════════════════════════════════════
+   SCROLL REVEAL + COUNTER ANIMATION
+════════════════════════════════════════════════ */
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (!e.isIntersecting) return;
+    e.target.classList.add('visible');
+
+    // Animate bars
+    e.target.querySelectorAll('.bench-bar-herald').forEach(bar => {
+      bar.style.width = bar.dataset.target + '%';
+    });
+
+    // Animate counters
+    e.target.querySelectorAll('[data-target]').forEach(el => {
+      if (el.dataset.counted) return;
+      el.dataset.counted = 1;
+      const target = parseFloat(el.dataset.target);
+      const start = Date.now();
+      const dur = 1400;
+      const tick = () => {
+        const p = Math.min((Date.now()-start)/dur, 1);
+        const ease = 1 - Math.pow(1-p, 3);
+        el.textContent = (target * ease).toFixed(1);
+        if (p < 1) requestAnimationFrame(tick);
+      };
+      tick();
+    });
+
+    io.unobserve(e.target);
+  });
+}, { threshold: .15 });
+
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+// Also observe stat items
+document.querySelectorAll('.stat-item').forEach(el => {
+  io.observe(el);
+  el.classList.add('reveal');
+});
+
+/* ════════════════════════════════════════════════
+   COPY BIBTEX
+════════════════════════════════════════════════ */
+function copyBib() {
+  const text = `@inproceedings{lastname2026herald,
+  title     = {Harmfulness Propagation Dynamics: Layer-wise Trajectories of Adversarial Intent in Large Language Models},
+  author    = {Lastname1, Firstname1 and Lastname2, Firstname2 and others},
+  booktitle = {Proceedings of the 43rd International Conference on Machine Learning},
+  series    = {Proceedings of Machine Learning Research},
+  year      = {2026},
+  publisher = {PMLR}
+}`;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = 'COPIED ✓';
+    btn.style.color = 'var(--green)';
+    setTimeout(() => { btn.textContent = 'COPY'; btn.style.color = ''; }, 2000);
+  });
+}
+</script>
+</body>
+</html>
